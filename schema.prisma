@@ -1,0 +1,261 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enum para tipos de usuário
+enum UserRole {
+  ADMIN
+  PROFESSOR
+  ALUNO
+}
+
+// Enum para status acadêmico
+enum AcademicStatus {
+  APROVADO
+  RECUPERACAO
+  REPROVADO
+  CURSANDO
+}
+
+// Enum para tipos de avaliação
+enum EvaluationType {
+  PROVA
+  TRABALHO
+  PARTICIPACAO
+  PROJETO
+  SEMINARIO
+  OUTROS
+}
+
+// Enum para períodos/bimestres
+enum Period {
+  PRIMEIRO_BIMESTRE
+  SEGUNDO_BIMESTRE
+  TERCEIRO_BIMESTRE
+  QUARTO_BIMESTRE
+}
+
+// Modelo principal de usuários
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  cpf       String?  @unique
+  phone     String?
+  role      UserRole
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos específicos por tipo
+  admin     Admin?
+  professor Professor?
+  aluno     Aluno?
+
+  @@map("users")
+}
+
+// Modelo para administradores
+model Admin {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admins")
+}
+
+// Modelo para professores
+model Professor {
+  id          String @id @default(cuid())
+  userId      String @unique
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registration String @unique // Matrícula do professor
+  specialty   String? // Especialidade do professor
+
+  // Relacionamentos
+  disciplinaProfessores DisciplinaProfessor[]
+  notas                 Nota[]
+  faltas                Falta[]
+
+  @@map("professores")
+}
+
+// Modelo para alunos
+model Aluno {
+  id           String         @id @default(cuid())
+  userId       String         @unique
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matricula    String         @unique // Matrícula do aluno
+  dataNascimento DateTime?
+  responsavel  String? // Nome do responsável
+  status       AcademicStatus @default(CURSANDO)
+  turmaId      String?
+
+  // Relacionamentos
+  turma  Turma?  @relation(fields: [turmaId], references: [id])
+  notas  Nota[]
+  faltas Falta[]
+
+  @@map("alunos")
+}
+
+// Modelo para turmas/classes
+model Turma {
+  id        String  @id @default(cuid())
+  nome      String  @unique // Ex: "1ºA", "2ºB", "3ºC"
+  serie     String // "1º ANO", "2º ANO", "3º ANO"
+  ano       Int // Ano letivo
+  ativa     Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  alunos                Aluno[]
+  disciplinaProfessores DisciplinaProfessor[]
+  notas                 Nota[]
+  faltas                Falta[]
+
+  @@map("turmas")
+}
+
+// Modelo para disciplinas
+model Disciplina {
+  id          String  @id @default(cuid())
+  nome        String  @unique // Ex: "Matemática", "Português"
+  codigo      String  @unique // Ex: "MAT", "PORT"
+  cargaHoraria Int    // Carga horária semanal
+  ativa       Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  disciplinaProfessores DisciplinaProfessor[]
+  notas                 Nota[]
+  faltas                Falta[]
+
+  @@map("disciplinas")
+}
+
+// Tabela de associação entre disciplinas, professores e turmas
+model DisciplinaProfessor {
+  id           String @id @default(cuid())
+  disciplinaId String
+  professorId  String
+  turmaId      String
+  ano          Int // Ano letivo
+  ativa        Boolean @default(true)
+  createdAt    DateTime @default(now())
+
+  // Relacionamentos
+  disciplina Disciplina @relation(fields: [disciplinaId], references: [id])
+  professor  Professor  @relation(fields: [professorId], references: [id])
+  turma      Turma      @relation(fields: [turmaId], references: [id])
+
+  // Índices únicos para evitar duplicação
+  @@unique([disciplinaId, professorId, turmaId, ano])
+  @@map("disciplina_professores")
+}
+
+// Modelo para notas
+model Nota {
+  id             String         @id @default(cuid())
+  valor          Float // Nota de 0 a 10
+  peso           Float          @default(1.0) // Peso da avaliação
+  tipoAvaliacao  EvaluationType
+  periodo        Period
+  descricao      String? // Descrição da avaliação
+  dataAvaliacao  DateTime
+  alunoId        String
+  professorId    String
+  disciplinaId   String
+  turmaId        String
+  ano            Int // Ano letivo
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  // Relacionamentos
+  aluno      Aluno      @relation(fields: [alunoId], references: [id])
+  professor  Professor  @relation(fields: [professorId], references: [id])
+  disciplina Disciplina @relation(fields: [disciplinaId], references: [id])
+  turma      Turma      @relation(fields: [turmaId], references: [id])
+
+  @@map("notas")
+}
+
+// Modelo para faltas
+model Falta {
+  id           String   @id @default(cuid())
+  data         DateTime // Data da aula
+  aulas        Int      @default(1) // Número de aulas perdidas
+  justificada  Boolean  @default(false)
+  observacao   String?
+  alunoId      String
+  professorId  String
+  disciplinaId String
+  turmaId      String
+  ano          Int // Ano letivo
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relacionamentos
+  aluno      Aluno      @relation(fields: [alunoId], references: [id])
+  professor  Professor  @relation(fields: [professorId], references: [id])
+  disciplina Disciplina @relation(fields: [disciplinaId], references: [id])
+  turma      Turma      @relation(fields: [turmaId], references: [id])
+
+  @@map("faltas")
+}
+
+// Modelo para configurações do sistema
+model Configuracao {
+  id                    String  @id @default(cuid())
+  chave                 String  @unique
+  valor                 String
+  descricao             String?
+  ativa                 Boolean @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("configuracoes")
+}
+
+// Modelo para períodos letivos
+model PeriodoLetivo {
+  id          String   @id @default(cuid())
+  nome        String // Ex: "1º Bimestre 2024"
+  periodo     Period
+  ano         Int
+  dataInicio  DateTime
+  dataFim     DateTime
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([periodo, ano])
+  @@map("periodos_letivos")
+}
+
+// Modelo para logs de auditoria
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  acao      String // CREATE, UPDATE, DELETE
+  tabela    String // Nome da tabela afetada
+  registroId String // ID do registro afetado
+  dadosAntigos Json? // Dados antes da alteração
+  dadosNovos   Json? // Dados após a alteração
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
