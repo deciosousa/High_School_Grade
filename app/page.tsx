@@ -76,8 +76,40 @@ export default function Home() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-lg text-gray-700">Faça login para visualizar as estatísticas.</p>
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              🎓 Sistema de Notas e Faltas
+            </h1>
+            <p className="text-lg text-gray-600 mb-8">
+              Faça login para acessar o sistema
+            </p>
+          </div>
+          
+          <div className="bg-white shadow-lg rounded-lg p-8">
+            <div className="text-center space-y-6">
+              <div className="text-gray-600">
+                <p className="mb-4">Bem-vindo ao sistema de gerenciamento acadêmico!</p>
+                <p className="text-sm">Faça login para visualizar estatísticas e gerenciar dados escolares.</p>
+              </div>
+              
+              <a
+                href="/login"
+                className="inline-flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
+                Fazer Login
+              </a>
+              
+              <div className="text-xs text-gray-500">
+                <p>Credenciais de teste disponíveis na página de login</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
