@@ -39,6 +39,7 @@ interface Professor {
     id: string
     name: string
   }
+  capacitacoes?: { id: string; nome: string }[]
 }
 
 export default function TurmasPage() {
