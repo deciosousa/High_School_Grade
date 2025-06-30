@@ -33,6 +33,19 @@ export async function PUT(
       data: { active: newStatus }
     })
 
+    // Se estiver inativando, desvincular das turmas
+    if (!newStatus) {
+      await prisma.disciplinaProfessor.updateMany({
+        where: {
+          professorId: id,
+          turmaId: { not: null }
+        },
+        data: {
+          professorId: null
+        }
+      })
+    }
+
     return NextResponse.json({ 
       message: `Professor ${newStatus ? 'ativado' : 'desativado'} com sucesso` 
     })
@@ -43,4 +56,4 @@ export async function PUT(
       { status: 500 }
     )
   }
-} 
+}

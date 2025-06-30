@@ -333,7 +333,7 @@ export default function TurmasPage() {
                             >
                               <option value="">Sem professor definido</option>
                               {professores
-                                .filter((prof) => prof.capacitacoes && prof.capacitacoes.length > 0)
+                                .filter((prof) => prof.capacitacoes && prof.capacitacoes.length > 0 && prof.user.active)
                                 .map((prof) => (
                                   <option key={prof.id} value={prof.id}>{prof.user.name}</option>
                                 ))}

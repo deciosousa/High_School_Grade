@@ -165,6 +165,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(professorFormatado, { status: 201 })
   } catch (error) {
     console.error('Erro ao criar professor:', error)
+    if (error instanceof Error) {
+      return NextResponse.json(
+        { error: 'Erro interno do servidor: ' + error.message },
+        { status: 500 }
+      )
+    }
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

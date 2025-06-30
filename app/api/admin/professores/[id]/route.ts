@@ -186,13 +186,12 @@ export async function DELETE(
     const { id } = params
 
     // Verificar se há associações com disciplinas
-    const associacoes = await prisma.disciplinaProfessor.findMany({
-      where: { professorId: id }
+    const associacoesAtivas = await prisma.disciplinaProfessor.findMany({
+      where: { professorId: id, turmaId: { not: null } }
     })
-
-    if (associacoes.length > 0) {
+    if (associacoesAtivas.length > 0) {
       return NextResponse.json(
-        { error: 'Não é possível excluir um professor que possui disciplinas associadas' },
+        { error: 'Não é possível excluir um professor que possui disciplinas associadas ativamente em turmas. Desvincule o professor das turmas antes de excluir.' },
         { status: 400 }
       )
     }
