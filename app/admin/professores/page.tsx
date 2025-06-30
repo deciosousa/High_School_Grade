@@ -4,6 +4,19 @@ import { useState, useEffect } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import Link from 'next/link'
 
+interface Disciplina {
+  id: string
+  nome: string
+  codigo: string
+}
+
+interface Turma {
+  id: string
+  nome: string
+  serie: string
+  ano: number
+}
+
 interface Professor {
   id: string
   user: {
@@ -13,17 +26,16 @@ interface Professor {
     active: boolean
   }
   registration: string
-  specialty: string | null
-}
-
-interface Disciplina {
-  id: string
-  nome: string
-  codigo: string
+  capacitacoes: Disciplina[]
+  turmas: Array<{
+    turma: Turma
+    disciplina: Disciplina
+  }>
 }
 
 export default function ProfessoresPage() {
   const [professores, setProfessores] = useState<Professor[]>([])
+  const [disciplinas, setDisciplinas] = useState<Disciplina[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingProfessor, setEditingProfessor] = useState<Professor | null>(null)
@@ -32,11 +44,12 @@ export default function ProfessoresPage() {
     email: '',
     password: '',
     registration: '',
-    specialty: ''
+    disciplinas: [] as string[]
   })
 
   useEffect(() => {
     fetchProfessores()
+    fetchDisciplinas()
   }, [])
 
   const fetchProfessores = async () => {
@@ -44,14 +57,36 @@ export default function ProfessoresPage() {
       const response = await fetch('/api/admin/professores')
       if (response.ok) {
         const data = await response.json()
-        setProfessores(data)
+        // Remover duplicatas baseado no ID
+        const professoresUnicos = data ? data.filter((professor: Professor, index: number, self: Professor[]) => 
+          index === self.findIndex((p: Professor) => p.id === professor.id)
+        ) : []
+        setProfessores(professoresUnicos)
       } else {
         console.error('Erro ao buscar professores:', response.statusText)
+        setProfessores([])
       }
     } catch (error) {
       console.error('Erro ao buscar professores:', error)
+      setProfessores([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchDisciplinas = async () => {
+    try {
+      const response = await fetch('/api/admin/disciplinas')
+      if (response.ok) {
+        const data = await response.json()
+        setDisciplinas(data || [])
+      } else {
+        console.error('Erro ao buscar disciplinas:', response.statusText)
+        setDisciplinas([])
+      }
+    } catch (error) {
+      console.error('Erro ao buscar disciplinas:', error)
+      setDisciplinas([])
     }
   }
 
@@ -74,16 +109,16 @@ export default function ProfessoresPage() {
       if (response.ok) {
         setShowForm(false)
         setEditingProfessor(null)
-        setFormData({ name: '', email: '', password: '', registration: '', specialty: '' })
+        setFormData({ name: '', email: '', password: '', registration: '', disciplinas: [] })
         fetchProfessores()
         alert(editingProfessor ? 'Professor atualizado com sucesso!' : 'Professor criado com sucesso!')
       } else {
-        const errorData = await response.json()
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
         alert(errorData.error || 'Erro ao salvar professor')
       }
     } catch (error) {
       console.error('Erro ao salvar professor:', error)
-      alert('Erro ao salvar professor')
+      alert('Erro ao salvar professor. Verifique a conexão e tente novamente.')
     }
   }
 
@@ -94,7 +129,7 @@ export default function ProfessoresPage() {
       email: professor.user.email,
       password: '', // Não preencher senha na edição
       registration: professor.registration,
-      specialty: professor.specialty || ''
+      disciplinas: professor.capacitacoes?.map(d => d.id) || []
     })
     setShowForm(true)
   }
@@ -142,7 +177,7 @@ export default function ProfessoresPage() {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Carregando professores...</div>
+          <div className="text-lg text-gray-700">Carregando professores...</div>
         </div>
       </AppLayout>
     )
@@ -232,15 +267,36 @@ export default function ProfessoresPage() {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Especialidade
+                    Disciplinas de Capacitação
                   </label>
-                  <input
-                    type="text"
-                    value={formData.specialty}
-                    onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                    placeholder="Ex: Matemática, Português, História..."
-                  />
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
+                    {disciplinas.map((disciplina) => (
+                      <label key={disciplina.id} className="flex items-center space-x-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={formData.disciplinas.includes(disciplina.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({
+                                ...formData,
+                                disciplinas: [...formData.disciplinas, disciplina.id]
+                              })
+                            } else {
+                              setFormData({
+                                ...formData,
+                                disciplinas: formData.disciplinas.filter(id => id !== disciplina.id)
+                              })
+                            }
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-gray-700">{disciplina.nome}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Selecione as disciplinas que este professor pode lecionar (capacitação)
+                  </p>
                 </div>
               </div>
               
@@ -256,7 +312,7 @@ export default function ProfessoresPage() {
                   onClick={() => {
                     setShowForm(false)
                     setEditingProfessor(null)
-                    setFormData({ name: '', email: '', password: '', registration: '', specialty: '' })
+                    setFormData({ name: '', email: '', password: '', registration: '', disciplinas: [] })
                   }}
                   className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md"
                 >
@@ -282,7 +338,10 @@ export default function ProfessoresPage() {
                   Matrícula
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Especialidade
+                  Capacitação
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Vínculos Ativos
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -295,7 +354,7 @@ export default function ProfessoresPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {professores.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                     Nenhum professor encontrado
                   </td>
                 </tr>
@@ -313,8 +372,43 @@ export default function ProfessoresPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">{professor.registration}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{professor.specialty || '-'}</div>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">
+                        {professor.capacitacoes && professor.capacitacoes.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {professor.capacitacoes.map((disciplina) => (
+                              <span
+                                key={disciplina.id}
+                                className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full"
+                              >
+                                {disciplina.nome}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-gray-500">Nenhuma capacitação</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">
+                        {professor.turmas && professor.turmas.length > 0 ? (
+                          <div className="space-y-1">
+                            {professor.turmas.map((vinculo, index) => (
+                              <div key={index} className="flex flex-col">
+                                <span className="text-xs font-medium text-green-700">
+                                  {vinculo.turma.nome} ({vinculo.turma.serie} - {vinculo.turma.ano})
+                                </span>
+                                <span className="text-xs text-gray-600">
+                                  {vinculo.disciplina.nome}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-gray-500">Nenhum vínculo</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -327,29 +421,47 @@ export default function ProfessoresPage() {
                         {professor.user.active ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
                       <button
                         onClick={() => handleEdit(professor)}
-                        className="text-blue-600 hover:text-blue-900"
+                          className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                          title="Editar professor"
                       >
+                          <svg className="w-4 h-4 mr-1 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
                         Editar
                       </button>
                       <button
                         onClick={() => handleToggleStatus(professor)}
-                        className={`${
+                          className={`inline-flex items-center px-3 py-1.5 rounded-md transition-colors ${
                           professor.user.active
-                            ? 'text-red-600 hover:text-red-900'
-                            : 'text-green-600 hover:text-green-900'
+                              ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
                         }`}
-                      >
+                          title={professor.user.active ? 'Desativar professor' : 'Ativar professor'}
+                        >
+                          <svg className={`w-4 h-4 mr-1 ${professor.user.active ? 'text-orange-700' : 'text-green-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {professor.user.active ? (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
+                            ) : (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            )}
+                          </svg>
                         {professor.user.active ? 'Desativar' : 'Ativar'}
                       </button>
                       <button
                         onClick={() => handleDelete(professor.id)}
-                        className="text-red-600 hover:text-red-900"
+                          className="inline-flex items-center px-3 py-1.5 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                          title="Excluir professor"
                       >
+                          <svg className="w-4 h-4 mr-1 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
                         Excluir
                       </button>
+                      </div>
                     </td>
                   </tr>
                 ))

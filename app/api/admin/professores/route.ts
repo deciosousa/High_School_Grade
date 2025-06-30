@@ -16,17 +16,6 @@ export async function GET() {
             email: true,
             active: true
           }
-        },
-        disciplinaProfessores: {
-          include: {
-            disciplina: {
-              select: {
-                id: true,
-                nome: true,
-                codigo: true
-              }
-            }
-          }
         }
       },
       orderBy: {
@@ -36,7 +25,40 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json(professores)
+    // Buscar disciplinas de capacitação e disciplinas vinculadas a turmas para cada professor
+    const professoresComDisciplinas = await Promise.all(professores.map(async (professor) => {
+      // Capacitação
+      const capacitacoes = await prisma.disciplinaProfessor.findMany({
+        where: {
+          professorId: professor.id,
+          turmaId: null
+        },
+        include: {
+          disciplina: true
+        }
+      })
+      // Disciplinas em turmas
+      const emTurmas = await prisma.disciplinaProfessor.findMany({
+        where: {
+          professorId: professor.id,
+          turmaId: { not: null }
+        },
+        include: {
+          disciplina: true,
+          turma: true
+        }
+      })
+      return {
+        ...professor,
+        capacitacoes: capacitacoes.map(c => c.disciplina),
+        turmas: emTurmas.map(e => ({
+          turma: e.turma,
+          disciplina: e.disciplina
+        }))
+      }
+    }))
+
+    return NextResponse.json(professoresComDisciplinas)
   } catch (error) {
     console.error('Erro ao buscar professores:', error)
     return NextResponse.json(
@@ -49,7 +71,7 @@ export async function GET() {
 // POST - Criar novo professor
 export async function POST(request: NextRequest) {
   try {
-    const { name, email, password, registration, specialty, disciplinas } = await request.json()
+    const { name, email, password, registration, disciplinas } = await request.json()
 
     // Verificar se já existe usuário com o mesmo email
     const existingUser = await prisma.user.findUnique({
@@ -78,22 +100,43 @@ export async function POST(request: NextRequest) {
     // Hash da senha
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Criar usuário e professor em uma transação
-    const professor = await prisma.professor.create({
-      data: {
-        registration,
-        specialty,
-        user: {
-          create: {
-            name,
-            email,
-            password: hashedPassword,
-            role: 'PROFESSOR'
+    // Criar usuário, professor e capacitações em uma transação
+    const result = await prisma.$transaction(async (tx) => {
+      // Criar usuário e professor
+      const professor = await tx.professor.create({
+        data: {
+          registration,
+          user: {
+            create: {
+              name,
+              email,
+              password: hashedPassword,
+              role: 'PROFESSOR'
+            }
           }
         }
-        // Removido a criação automática de relacionamentos com disciplinas
-        // Isso deve ser feito separadamente quando o professor for associado a uma turma
-      },
+      })
+
+      // Criar capacitações (disciplinaProfessor com turmaId null)
+      if (disciplinas && disciplinas.length > 0) {
+        for (const disciplinaId of disciplinas) {
+          await tx.disciplinaProfessor.create({
+            data: {
+              disciplinaId,
+              professorId: professor.id,
+              turmaId: null,
+              ano: new Date().getFullYear()
+            }
+          })
+        }
+      }
+
+      return professor
+    })
+
+    // Buscar professor com capacitações para retornar
+    const professorComCapacitacoes = await prisma.professor.findUnique({
+      where: { id: result.id },
       include: {
         user: {
           select: {
@@ -104,20 +147,22 @@ export async function POST(request: NextRequest) {
           }
         },
         disciplinaProfessores: {
+          where: { turmaId: null },
           include: {
-            disciplina: {
-              select: {
-                id: true,
-                nome: true,
-                codigo: true
-              }
-            }
+            disciplina: true
           }
         }
       }
     })
 
-    return NextResponse.json(professor, { status: 201 })
+    // Formatar resposta
+    const professorFormatado = {
+      ...professorComCapacitacoes,
+      capacitacoes: professorComCapacitacoes?.disciplinaProfessores.map(dp => dp.disciplina) || [],
+      turmas: []
+    }
+
+    return NextResponse.json(professorFormatado, { status: 201 })
   } catch (error) {
     console.error('Erro ao criar professor:', error)
     return NextResponse.json(

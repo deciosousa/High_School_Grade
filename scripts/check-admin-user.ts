@@ -92,8 +92,7 @@ async function checkAndCreateAdmin() {
               role: testUser.role,
               professor: {
                 create: {
-                  registration: `PROF${Date.now()}`,
-                  specialty: 'Matemática'
+                  registration: `PROF${Date.now()}`
                 }
               }
             }

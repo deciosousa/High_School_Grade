@@ -1,77 +1,94 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { User, Session, AuthSession, AuthChangeEvent } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+
+interface User {
+  id: string
+  email: string
+  name: string
+  role: 'ADMIN' | 'PROFESSOR' | 'ALUNO'
+  active: boolean
+}
 
 interface AuthContextType {
   user: User | null
-  session: Session | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: any }>
   signOut: () => Promise<void>
-  signUp: (email: string, password: string, userData: any) => Promise<{ error: any }>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Buscar sessão inicial
-    supabase.auth.getSession().then((result: { data: { session: Session | null } }) => {
-      setSession(result.data.session)
-      setUser(result.data.session?.user ?? null)
+    // Verificar se há uma sessão salva no localStorage
+    const checkAuth = async () => {
+      try {
+        const token = localStorage.getItem('auth_token')
+        if (token) {
+          // Verificar se o token ainda é válido
+          const response = await fetch('/api/auth/verify', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          })
+          
+          if (response.ok) {
+            const userData = await response.json()
+            setUser(userData)
+          } else {
+            // Token inválido, remover do localStorage
+            localStorage.removeItem('auth_token')
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao verificar autenticação:', error)
+      } finally {
       setLoading(false)
-    })
-
-    // Escutar mudanças de autenticação
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (_event: AuthChangeEvent, session: Session | null) => {
-        setSession(session)
-        setUser(session?.user ?? null)
-        setLoading(false)
       }
-    )
+    }
 
-    return () => subscription.unsubscribe()
+    checkAuth()
   }, [])
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    return { error }
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        localStorage.setItem('auth_token', data.token)
+        setUser(data.user)
+        return { error: null }
+      } else {
+        return { error: data.error || 'Erro ao fazer login' }
+      }
+    } catch (error) {
+      console.error('Erro no login:', error)
+      return { error: 'Erro de conexão' }
+    }
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
-  }
-
-  const signUp = async (email: string, password: string, userData: any) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: userData,
-      },
-    })
-    return { error }
+    localStorage.removeItem('auth_token')
+    setUser(null)
   }
 
   const value = {
     user,
-    session,
     loading,
     signIn,
     signOut,
-    signUp,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

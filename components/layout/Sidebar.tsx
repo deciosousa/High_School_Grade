@@ -16,7 +16,6 @@ export function Sidebar({ userRole }: SidebarProps) {
     { href: '/admin/disciplinas', label: 'Disciplinas', icon: '📚' },
     { href: '/admin/professores', label: 'Professores', icon: '👨‍🏫' },
     { href: '/admin/alunos', label: 'Alunos', icon: '👨‍🎓' },
-    { href: '/admin/associacoes', label: 'Associações', icon: '🔗' },
     { href: '/admin/relatorios', label: 'Relatórios', icon: '📈' },
     { href: '/admin/configuracoes', label: 'Configurações', icon: '⚙️' },
   ]

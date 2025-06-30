@@ -11,7 +11,7 @@ export async function PUT(
 ) {
   try {
     const { id } = params
-    const { name, email, password, registration, specialty } = await request.json()
+    const { name, email, password, registration, disciplinas } = await request.json()
 
     // Buscar o professor
     const professor = await prisma.professor.findUnique({
@@ -54,31 +54,74 @@ export async function PUT(
       }
     }
 
-    // Preparar dados para atualização
-    const updateData: any = {
-      registration,
-      specialty
-    }
+    // Atualizar professor e usuário em uma transação
+    const updatedProfessor = await prisma.$transaction(async (tx) => {
+      // Preparar dados para atualização
+      const updateData: any = {
+        registration
+      }
 
-    const userUpdateData: any = {
-      name,
-      email
-    }
+      const userUpdateData: any = {
+        name,
+        email
+      }
 
-    // Se uma nova senha foi fornecida, fazer hash
-    if (password && password.trim() !== '') {
-      userUpdateData.password = await bcrypt.hash(password, 10)
-    }
+      // Se uma nova senha foi fornecida, fazer hash
+      if (password && password.trim() !== '') {
+        userUpdateData.password = await bcrypt.hash(password, 10)
+      }
 
-    // Atualizar professor e usuário
-    const updatedProfessor = await prisma.professor.update({
-      where: { id },
-      data: {
-        ...updateData,
-        user: {
-          update: userUpdateData
+      // Atualizar professor e usuário
+      const professor = await tx.professor.update({
+        where: { id },
+        data: {
+          ...updateData,
+          user: {
+            update: userUpdateData
+          }
         }
-      },
+      })
+
+      // Gerenciar disciplinas de capacitação se fornecidas
+      if (disciplinas !== undefined) {
+        // Remover todas as capacitações antigas (onde turmaId é null)
+        await tx.disciplinaProfessor.deleteMany({
+          where: {
+            professorId: id,
+            turmaId: null
+          }
+        })
+        // Remover todos os vínculos disciplina-professor-turma em turmas
+        await tx.disciplinaProfessor.updateMany({
+          where: {
+            professorId: id,
+            turmaId: { not: null }
+          },
+          data: {
+            professorId: null
+          }
+        })
+        // Adicionar novas capacitações
+        if (disciplinas && disciplinas.length > 0) {
+          for (const disciplinaId of disciplinas) {
+            await tx.disciplinaProfessor.create({
+              data: {
+                disciplinaId,
+                professorId: id,
+                turmaId: null,
+                ano: new Date().getFullYear()
+              }
+            })
+          }
+        }
+      }
+
+      return professor
+    })
+
+    // Buscar professor com capacitações e vínculos para retornar
+    const professorComDisciplinas = await prisma.professor.findUnique({
+      where: { id },
       include: {
         user: {
           select: {
@@ -91,7 +134,40 @@ export async function PUT(
       }
     })
 
-    return NextResponse.json(updatedProfessor)
+    // Buscar capacitações
+    const capacitacoes = await prisma.disciplinaProfessor.findMany({
+      where: {
+        professorId: id,
+        turmaId: null
+      },
+      include: {
+        disciplina: true
+      }
+    })
+
+    // Buscar vínculos em turmas
+    const emTurmas = await prisma.disciplinaProfessor.findMany({
+      where: {
+        professorId: id,
+        turmaId: { not: null }
+      },
+      include: {
+        disciplina: true,
+        turma: true
+      }
+    })
+
+    // Formatar resposta
+    const professorFormatado = {
+      ...professorComDisciplinas,
+      capacitacoes: capacitacoes.map(c => c.disciplina),
+      turmas: emTurmas.map(e => ({
+        turma: e.turma,
+        disciplina: e.disciplina
+      }))
+    }
+
+    return NextResponse.json(professorFormatado)
   } catch (error) {
     console.error('Erro ao atualizar professor:', error)
     return NextResponse.json(

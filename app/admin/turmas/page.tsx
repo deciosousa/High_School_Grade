@@ -10,21 +10,55 @@ interface Turma {
   serie: string
   ano: number
   ativa: boolean
+  disciplinaProfessores?: {
+    disciplinaId: string
+    professorId: string | null
+    disciplina: {
+      id: string
+      nome: string
+      codigo: string
+    }
+    professor: {
+      id: string
+      user: {
+        id: string
+        name: string
+      }
+    } | null
+  }[]
+}
+
+interface Disciplina {
+  id: string
+  nome: string
+}
+
+interface Professor {
+  id: string
+  user: {
+    id: string
+    name: string
+  }
 }
 
 export default function TurmasPage() {
   const [turmas, setTurmas] = useState<Turma[]>([])
+  const [disciplinas, setDisciplinas] = useState<Disciplina[]>([])
+  const [professores, setProfessores] = useState<Professor[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingTurma, setEditingTurma] = useState<Turma | null>(null)
   const [formData, setFormData] = useState({
     nome: '',
     serie: '',
-    ano: new Date().getFullYear()
+    ano: new Date().getFullYear(),
+    disciplinas: [] as { disciplinaId: string, professorId: string | null }[]
   })
 
   useEffect(() => {
     fetchTurmas()
+    fetchDisciplinas()
+    fetchProfessores()
   }, [])
 
   const fetchTurmas = async () => {
@@ -43,8 +77,38 @@ export default function TurmasPage() {
     }
   }
 
+  const fetchDisciplinas = async () => {
+    try {
+      const response = await fetch('/api/admin/disciplinas')
+      if (response.ok) {
+        const data = await response.json()
+        setDisciplinas(data)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar disciplinas:', error)
+    }
+  }
+
+  const fetchProfessores = async () => {
+    try {
+      const response = await fetch('/api/admin/professores')
+      if (response.ok) {
+        const data = await response.json()
+        setProfessores(data)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar professores:', error)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validação: pelo menos uma disciplina deve ser selecionada
+    if (formData.disciplinas.length === 0) {
+      alert('É obrigatório selecionar pelo menos uma disciplina')
+      return
+    }
     
     try {
       const url = editingTurma 
@@ -62,7 +126,7 @@ export default function TurmasPage() {
       if (response.ok) {
         setShowForm(false)
         setEditingTurma(null)
-        setFormData({ nome: '', serie: '', ano: new Date().getFullYear() })
+        setFormData({ nome: '', serie: '', ano: new Date().getFullYear(), disciplinas: [] })
         fetchTurmas()
         alert(editingTurma ? 'Turma atualizada com sucesso!' : 'Turma criada com sucesso!')
       } else {
@@ -80,7 +144,11 @@ export default function TurmasPage() {
     setFormData({
       nome: turma.nome,
       serie: turma.serie,
-      ano: turma.ano
+      ano: turma.ano,
+      disciplinas: turma.disciplinaProfessores?.map(dp => ({
+        disciplinaId: dp.disciplinaId,
+        professorId: dp.professorId
+      })) || []
     })
     setShowForm(true)
   }
@@ -124,11 +192,34 @@ export default function TurmasPage() {
     }
   }
 
+  const handleDisciplinaChange = (disciplinaId: string, checked: boolean) => {
+    if (checked) {
+      setFormData({
+        ...formData,
+        disciplinas: [...formData.disciplinas, { disciplinaId, professorId: null }]
+      })
+    } else {
+      setFormData({
+        ...formData,
+        disciplinas: formData.disciplinas.filter(d => d.disciplinaId !== disciplinaId)
+      })
+    }
+  }
+
+  const handleProfessorChange = (disciplinaId: string, professorId: string) => {
+    setFormData({
+      ...formData,
+      disciplinas: formData.disciplinas.map(d =>
+        d.disciplinaId === disciplinaId ? { ...d, professorId: professorId || null } : d
+      )
+    })
+  }
+
   if (loading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Carregando turmas...</div>
+          <div className="text-lg text-gray-700">Carregando turmas...</div>
         </div>
       </AppLayout>
     )
@@ -213,6 +304,50 @@ export default function TurmasPage() {
                 </div>
               </div>
               
+              <div className="col-span-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Disciplinas da Turma <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {disciplinas.map((disciplina) => {
+                    const selected = formData.disciplinas.some(d => d.disciplinaId === disciplina.id)
+                    return (
+                      <div key={disciplina.id} className="border rounded-md p-2">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={e => handleDisciplinaChange(disciplina.id, e.target.checked)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-gray-900">{disciplina.nome}</span>
+                        </label>
+                        {selected && (
+                          <div className="mt-2">
+                            <label className="block text-xs text-gray-700 mb-1">Professor (opcional)</label>
+                            <select
+                              value={formData.disciplinas.find(d => d.disciplinaId === disciplina.id)?.professorId || ''}
+                              onChange={e => handleProfessorChange(disciplina.id, e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded-md text-gray-900"
+                            >
+                              <option value="">Sem professor definido</option>
+                              {professores
+                                .filter((prof) => prof.capacitacoes && prof.capacitacoes.length > 0)
+                                .map((prof) => (
+                                  <option key={prof.id} value={prof.id}>{prof.user.name}</option>
+                                ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                {formData.disciplinas.length === 0 && (
+                  <p className="text-xs text-red-500 mt-1">Selecione pelo menos uma disciplina</p>
+                )}
+              </div>
+              
               <div className="flex space-x-3">
                 <button
                   type="submit"
@@ -225,7 +360,7 @@ export default function TurmasPage() {
                   onClick={() => {
                     setShowForm(false)
                     setEditingTurma(null)
-                    setFormData({ nome: '', serie: '', ano: new Date().getFullYear() })
+                    setFormData({ nome: '', serie: '', ano: new Date().getFullYear(), disciplinas: [] })
                   }}
                   className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md"
                 >
@@ -251,6 +386,9 @@ export default function TurmasPage() {
                   Ano
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Disciplinas
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -261,7 +399,7 @@ export default function TurmasPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {turmas.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
                     Nenhuma turma encontrada
                   </td>
                 </tr>
@@ -279,6 +417,30 @@ export default function TurmasPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">{turma.ano}</div>
                     </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">
+                        {turma.disciplinaProfessores && turma.disciplinaProfessores.length > 0 ? (
+                          <div className="space-y-1">
+                            {turma.disciplinaProfessores.map((dp) => (
+                              <div key={dp.disciplinaId} className="flex items-center space-x-2">
+                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                  {dp.disciplina.nome}
+                                </span>
+                                {dp.professor && dp.professor.user ? (
+                                  <span className="text-xs text-gray-600">
+                                    ({dp.professor.user.name})
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-gray-400">(Sem professor)</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-xs">Sem disciplinas</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -290,29 +452,50 @@ export default function TurmasPage() {
                         {turma.ativa ? 'Ativa' : 'Inativa'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
                       <button
                         onClick={() => handleEdit(turma)}
-                        className="text-blue-600 hover:text-blue-900"
+                          className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                          title="Editar turma"
                       >
+                          <svg className="w-4 h-4 mr-1 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
                         Editar
                       </button>
                       <button
                         onClick={() => handleToggleStatus(turma)}
-                        className={`${
+                          className={`inline-flex items-center px-3 py-1.5 rounded-md transition-colors ${
                           turma.ativa
-                            ? 'text-red-600 hover:text-red-900'
-                            : 'text-green-600 hover:text-green-900'
+                              ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
                         }`}
-                      >
+                          title={turma.ativa ? 'Desativar turma' : 'Ativar turma'}
+                        >
+                          <svg className={`w-4 h-4 mr-1 ${turma.ativa ? 'text-orange-700' : 'text-green-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {turma.ativa ? (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
+                            ) : (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            )}
+                          </svg>
                         {turma.ativa ? 'Desativar' : 'Ativar'}
                       </button>
-                      <button
-                        onClick={() => handleDelete(turma.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Excluir
-                      </button>
+                      {/* Botão de excluir só aparece se a turma estiver inativa */}
+                      { !turma.ativa && (
+                        <button
+                          onClick={() => handleDelete(turma.id)}
+                          className="inline-flex items-center px-3 py-1.5 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                          title="Excluir turma"
+                        >
+                          <svg className="w-4 h-4 mr-1 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Excluir
+                        </button>
+                      )}
+                      </div>
                     </td>
                   </tr>
                 ))

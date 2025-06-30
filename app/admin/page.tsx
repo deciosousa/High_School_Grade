@@ -166,25 +166,15 @@ export default function AdminDashboard() {
             </a>
 
             <a
-              href="/admin/associacoes"
+              href="/admin/disciplinas"
               className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
-              <span className="text-2xl mr-3">🔗</span>
+              <span className="text-2xl mr-3">📚</span>
               <div>
-                <h3 className="font-medium text-gray-900">Associações</h3>
-                <p className="text-sm text-gray-600">Professor-Disciplina-Turma</p>
+                <h3 className="font-medium text-gray-900">Gerenciar Disciplinas</h3>
+                <p className="text-sm text-gray-600">Criar e editar disciplinas</p>
               </div>
             </a>
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Atividade Recente
-          </h2>
-          <div className="text-gray-600 text-center py-8">
-            <p>Nenhuma atividade recente</p>
           </div>
         </div>
       </div>
