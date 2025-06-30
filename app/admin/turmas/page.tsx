@@ -38,6 +38,7 @@ interface Professor {
   user: {
     id: string
     name: string
+    active: boolean
   }
   capacitacoes?: { id: string; nome: string }[]
 }
