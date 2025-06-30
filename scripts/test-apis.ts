@@ -61,7 +61,7 @@ async function testAPIs() {
     professoresComDisciplinas.forEach(prof => {
       console.log(`  👨‍🏫 ${prof.user.name}:`)
       console.log(`    📖 Capacitações: ${prof.capacitacoes.length > 0 ? prof.capacitacoes.map(c => c.nome).join(', ') : 'Nenhuma'}`)
-      console.log(`    🏫 Vínculos: ${prof.turmas.length > 0 ? prof.turmas.map(t => `${t.disciplina.nome} em ${t.turma.nome}`).join(', ') : 'Nenhum'}`)
+      console.log(`    🏫 Vínculos: ${prof.turmas.length > 0 ? prof.turmas.map(t => `${t.disciplina.nome} em ${t.turma ? t.turma.nome : 'Sem turma'}`).join(', ') : 'Nenhum'}`)
     })
 
     console.log('\n📚 Testando API de Turmas:')
